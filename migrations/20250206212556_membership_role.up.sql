@@ -1,8 +1,6 @@
-CREATE TABLE club(
+CREATE TABLE membership_role (
     id SERIAL PRIMARY KEY ,
-    name VARCHAR(255) UNIQUE NOT NULL,
-    school VARCHAR(500) NOT NULL,
-    email VARCHAR(255) NOT NULL,
+    role_name VARCHAR(255) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
