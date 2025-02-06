@@ -2,14 +2,13 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 use crate::db::dbclient::DBClient;
-use crate::models::user_model::{User, UserRole};
+use crate::models::user_model::{User};
 
 #[async_trait]
 pub trait UserExt {
     async fn get_user(
         &self,
         user_id: Option<Uuid>,
-        name: Option<&str>,
         email: Option<&str>,
         token: Option<&str>,
     ) -> Result<Option<User>, sqlx::Error>;
@@ -22,8 +21,10 @@ pub trait UserExt {
 
     async fn save_user<T: Into<String> + Send>(
         &self,
-        name: T,
+        first_name: T,
+        last_name: T,
         email: T,
+        phone_number: T,
         password: T,
         verification_token: T,
         token_expires_at: DateTime<Utc>,
@@ -34,14 +35,15 @@ pub trait UserExt {
     async fn update_user_name<T: Into<String> + Send>(
         &self,
         user_id: Uuid,
-        name: T,
+        first_name: T,
+        last_name: T,
     ) -> Result<User, sqlx::Error>;
 
-    async fn update_user_role(
-        &self,
-        user_id: Uuid,
-        role: UserRole,
-    ) -> Result<User, sqlx::Error>;
+    // async fn update_user_role(
+    //     &self,
+    //     user_id: Uuid,
+    //     role: UserRole,
+    // ) -> Result<User, sqlx::Error>;
 
     async fn update_user_password(
         &self,
@@ -67,7 +69,6 @@ impl UserExt for DBClient {
     async fn get_user(
         &self,
         user_id: Option<Uuid>,
-        name: Option<&str>,
         email: Option<&str>,
         token: Option<&str>,
     ) -> Result<Option<User>, sqlx::Error> {
@@ -76,26 +77,26 @@ impl UserExt for DBClient {
         if let Some(user_id) = user_id {
             user = sqlx::query_as!(
                 User,
-                r#"SELECT id, name, email, password, verified, created_at, updated_at, verification_token, token_expires_at, role as "role: UserRole" FROM users WHERE id = $1"#,
+                r#"SELECT id, first_name, last_name, email, phone_number,password, verified, created_at, updated_at, verification_token, token_expires_at FROM users WHERE id = $1"#,
                 user_id
             ).fetch_optional(&self.pool).await?;
-        } else if let Some(name) = name {
-            user = sqlx::query_as!(
-                User,
-                r#"SELECT id, name, email, password, verified, created_at, updated_at, verification_token, token_expires_at, role as "role: UserRole" FROM users WHERE name = $1"#,
-                name
-            ).fetch_optional(&self.pool).await?;
+        // } else if let Some(name) = name {
+        //     user = sqlx::query_as!(
+        //         User,
+        //         r#"SELECT id, name, email, password, verified, created_at, updated_at, verification_token, token_expires_at, role as "role: UserRole" FROM users WHERE name = $1"#,
+        //         name
+        //     ).fetch_optional(&self.pool).await?;
         } else if let Some(email) = email {
             user = sqlx::query_as!(
                 User,
-                r#"SELECT id, name, email, password, verified, created_at, updated_at, verification_token, token_expires_at, role as "role: UserRole" FROM users WHERE email = $1"#,
+                r#"SELECT id, first_name, last_name, email, phone_number,password, verified, created_at, updated_at, verification_token, token_expires_at FROM users WHERE email = $1"#,
                 email
             ).fetch_optional(&self.pool).await?;
         } else if let Some(token) = token {
             user = sqlx::query_as!(
                 User,
                 r#"
-                SELECT id, name, email, password, verified, created_at, updated_at, verification_token, token_expires_at, role as "role: UserRole"
+                SELECT id, first_name, last_name, email, phone_number, password, verified, created_at, updated_at, verification_token, token_expires_at
                 FROM users
                 WHERE verification_token = $1"#,
                 token
@@ -116,7 +117,7 @@ impl UserExt for DBClient {
 
         let users = sqlx::query_as!(
             User,
-            r#"SELECT id, name, email, password, verified, created_at, updated_at, verification_token, token_expires_at, role as "role: UserRole" FROM users
+            r#"SELECT * FROM users
             ORDER BY created_at DESC LIMIT $1 OFFSET $2"#,
             limit as i64,
             offset as i64,
@@ -128,8 +129,10 @@ impl UserExt for DBClient {
 
     async fn save_user<T: Into<String> + Send>(
         &self,
-        name: T,
+        first_name: T,
+        last_name: T,
         email: T,
+        phone_number: T,
         password: T,
         verification_token: T,
         token_expires_at: DateTime<Utc>,
@@ -137,12 +140,14 @@ impl UserExt for DBClient {
         let user = sqlx::query_as!(
             User,
             r#"
-            INSERT INTO users (name, email, password,verification_token, token_expires_at)
-            VALUES ($1, $2, $3, $4, $5)
-            RETURNING id, name, email, password, verified, created_at, updated_at, verification_token, token_expires_at, role as "role: UserRole"
+            INSERT INTO users (first_name, last_name, email, phone_number, password, verification_token, token_expires_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING id, first_name, last_name, email, phone_number, password, verified, created_at, updated_at, verification_token, token_expires_at
             "#,
-            name.into(),
+            first_name.into(),
+            last_name.into(),
             email.into(),
+            phone_number.into(),
             password.into(),
             verification_token.into(),
             token_expires_at
@@ -164,17 +169,19 @@ impl UserExt for DBClient {
     async fn update_user_name<T: Into<String> + Send>(
         &self,
         user_id: Uuid,
-        new_name: T
+        new_first_name: T,
+        new_last_name: T
     ) -> Result<User, sqlx::Error> {
         let user = sqlx::query_as!(
             User,
             r#"
             UPDATE users
-            SET name = $1, updated_at = Now()
-            WHERE id = $2
-            RETURNING id, name, email, password, verified, created_at, updated_at, verification_token, token_expires_at, role as "role: UserRole"
+            SET first_name = $1, last_name = $2, updated_at = Now()
+            WHERE id = $3
+            RETURNING id, first_name, last_name, email, phone_number, password, verified, created_at, updated_at, verification_token, token_expires_at
             "#,
-            new_name.into(),
+            new_first_name.into(),
+            new_last_name.into(),
             user_id
         ).fetch_one(&self.pool)
             .await?;
@@ -182,26 +189,26 @@ impl UserExt for DBClient {
         Ok(user)
     }
 
-    async fn update_user_role(
-        &self,
-        user_id: Uuid,
-        new_role: UserRole
-    ) -> Result<User, sqlx::Error> {
-        let user = sqlx::query_as!(
-            User,
-            r#"
-            UPDATE users
-            SET role = $1, updated_at = Now()
-            WHERE id = $2
-            RETURNING id, name, email, password, verified, created_at, updated_at, verification_token, token_expires_at, role as "role: UserRole"
-            "#,
-            new_role as UserRole,
-            user_id
-        ).fetch_one(&self.pool)
-            .await?;
-
-        Ok(user)
-    }
+    // async fn update_user_role(
+    //     &self,
+    //     user_id: Uuid,
+    //     new_role: UserRole
+    // ) -> Result<User, sqlx::Error> {
+    //     let user = sqlx::query_as!(
+    //         User,
+    //         r#"
+    //         UPDATE users
+    //         SET role = $1, updated_at = Now()
+    //         WHERE id = $2
+    //         RETURNING id, name, email, password, verified, created_at, updated_at, verification_token, token_expires_at, role as "role: UserRole"
+    //         "#,
+    //         new_role as UserRole,
+    //         user_id
+    //     ).fetch_one(&self.pool)
+    //         .await?;
+    //
+    //     Ok(user)
+    // }
 
     async fn update_user_password(
         &self,
@@ -214,7 +221,7 @@ impl UserExt for DBClient {
             UPDATE users
             SET password = $1, updated_at = Now()
             WHERE id = $2
-            RETURNING id, name, email, password, verified, created_at, updated_at, verification_token, token_expires_at, role as "role: UserRole"
+            RETURNING id, first_name, last_name, email, phone_number, password, verified, created_at, updated_at, verification_token, token_expires_at
             "#,
             new_password,
             user_id

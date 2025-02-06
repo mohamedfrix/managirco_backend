@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     db::userext::UserExt,
     error::{ErrorMessage, HttpError},
-    models::user_model::{User, UserRole},
+    models::user_model::{User},
     utils::token,
     AppState
 };
@@ -63,7 +63,7 @@ pub async fn auth(
                 HttpError::unauthorized(ErrorMessage::InvalidToken.to_string())
             })?;
 
-    let user = app_state.db_client.get_user(Some(user_id), None, None, None)
+    let user = app_state.db_client.get_user(Some(user_id), None, None)
             .await
             .map_err(|_| {
                 HttpError::unauthorized(ErrorMessage::UserNoLongerExist.to_string())
@@ -82,22 +82,22 @@ pub async fn auth(
 }
 
 
-pub async fn role_check(
-    Extension(_app_state): Extension<Arc<AppState>>,
-    req: Request,
-    next: Next,
-    required_roles: Vec<UserRole>,
-) -> Result<impl IntoResponse, HttpError> {
-    let user = req
-            .extensions()
-            .get::<JWTAuthMiddeware>()
-            .ok_or_else(|| {
-                HttpError::unauthorized(ErrorMessage::UserNotAuthenticated.to_string())
-            })?;
-    
-    if !required_roles.contains(&user.user.role) {
-        return Err(HttpError::new(ErrorMessage::PermissionDenied.to_string(), StatusCode::FORBIDDEN));
-    }
-
-    Ok(next.run(req).await)
-}
+// pub async fn role_check(
+//     Extension(_app_state): Extension<Arc<AppState>>,
+//     req: Request,
+//     next: Next,
+//     required_roles: Vec<UserRole>,
+// ) -> Result<impl IntoResponse, HttpError> {
+//     let user = req
+//             .extensions()
+//             .get::<JWTAuthMiddeware>()
+//             .ok_or_else(|| {
+//                 HttpError::unauthorized(ErrorMessage::UserNotAuthenticated.to_string())
+//             })?;
+//
+//     if !required_roles.contains(&user.user.role) {
+//         return Err(HttpError::new(ErrorMessage::PermissionDenied.to_string(), StatusCode::FORBIDDEN));
+//     }
+//
+//     Ok(next.run(req).await)
+// }

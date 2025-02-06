@@ -1,3 +1,4 @@
+use std::env;
 use super::sendmail::send_email;
 
 pub async fn send_verification_email(
@@ -7,8 +8,9 @@ pub async fn send_verification_email(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let subject = "Email Verification";
     let template_path = "src/mail/templates/Verification-email.html";
-    let base_url = "http://localhost:8000/api/auth/verify";
-    let verification_link = create_verification_link(base_url, token);
+    // let base_url = "http://localhost:8000/api/auth/verify";
+    let base_url = format!("{}/api/auth/verify", env::var("APP_URL")?);
+    let verification_link = create_verification_link(&base_url, token);
     let placeholders = vec![
         ("{{username}}".to_string(), username.to_string()),
         ("{{verification_link}}".to_string(), verification_link)
@@ -36,14 +38,14 @@ pub async fn send_welcome_email(
 
 pub async fn send_forgot_password_email(
     to_email: &str,
-    rest_link: &str,
+    reset_link: &str,
     username: &str
 ) -> Result<(), Box<dyn std::error::Error>> {
     let subject = "Rest your Password";
     let template_path = "src/mail/templates/RestPassword-email.html";
     let placeholders = vec![
         ("{{username}}".to_string(), username.to_string()),
-        ("{{rest_link}}".to_string(), rest_link.to_string())
+        ("{{reset_link}}".to_string(), reset_link.to_string())
     ];
 
     send_email(to_email, subject, template_path, &placeholders).await
