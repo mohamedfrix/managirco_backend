@@ -18,6 +18,11 @@ pub trait MembershipRepo {
         department_id: i32,
     ) -> Result<Vec<Membership>, sqlx::Error>;
 
+    async fn get_membership_by_user_id (
+        &self,
+        user_id: Uuid,
+    )-> Result<Option<Membership>, sqlx::Error>;
+
 }
 
 #[async_trait]
@@ -48,5 +53,18 @@ impl MembershipRepo for DBClient {
             .await?;
 
         Ok(result)
+    }
+
+    async fn get_membership_by_user_id(&self, user_id: Uuid) -> Result<Option<Membership>, Error> {
+        let result = sqlx::query_as!(
+            Membership,
+            r#"
+                SELECT * FROM membership WHERE user_id = $1
+            "#,
+            user_id,
+        ).fetch_one(&self.pool)
+        .await?;
+
+        Ok(Some(result))
     }
 }

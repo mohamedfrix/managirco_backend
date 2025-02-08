@@ -8,7 +8,10 @@ use crate::{handler::{auth::auth_handler, users::users_handler}, middleware::aut
 use crate::handler::admin::admin_handler;
 use crate::handler::club::club_handler;
 use crate::handler::club_membership_role::club_membership_role_handler;
+use crate::handler::collaboraion_member::collaboration_member_handler;
+use crate::handler::collaboration::collaboration_handler;
 use crate::handler::department::department_handler;
+use crate::handler::event::event_handler;
 use crate::handler::membership::membership_handler;
 use crate::middleware::auth_admin;
 
@@ -41,6 +44,18 @@ pub fn create_router(app_state: Arc<AppState>) -> Router {
         .nest(
             "/membership",
             membership_handler()
+        )
+        .nest(
+            "/event",
+            event_handler()
+        )
+        .nest(
+            "/collaboration",
+            collaboration_handler()
+        )
+        .nest(
+            "/collaboration_members",
+            collaboration_member_handler()
         )
         .layer(TraceLayer::new_for_http())
         .layer(Extension(app_state));

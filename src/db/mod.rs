@@ -5,3 +5,6 @@ pub mod admin_repo;
 pub mod department_repo;
 pub mod club_membership_role_repo;
 pub mod membership_repo;
+pub mod event_repo;
+pub mod collaboration_repo;
+pub mod collaboration_member_repo;
