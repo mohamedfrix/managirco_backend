@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use sqlx::{Pool, Postgres};
 use uuid::Uuid;
 
-use crate::models::user_model::{User, UserRole};
+use crate::models::user_model::User;
 
 #[derive(Debug, Clone)]
 pub struct DBClient {

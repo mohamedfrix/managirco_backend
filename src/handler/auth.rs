@@ -1,10 +1,13 @@
+use std::env;
+use std::ptr::write;
 use std::sync::Arc;
 
 use axum::{extract::Query, http::{header, HeaderMap, StatusCode}, response::{IntoResponse, Redirect}, routing::{get, post}, Extension, Json, Router};
 use axum_extra::extract::cookie::Cookie;
 use chrono::{Utc, Duration};
 use validator::Validate;
-
+use log::log;
+use tracing_subscriber::fmt;
 use crate::{db::userext::UserExt, dtos::user_dto::{ForgotPasswordRequestDto, LoginUserDto, RegisterUserDto, ResetPasswordRequestDto, Response, UserLoginResponseDto, VerifyEmailQueryDto}, error::{ErrorMessage, HttpError}, mail::mails::{send_forgot_password_email, send_verification_email, send_welcome_email}, utils::{password, token}, AppState};
 
 pub fn auth_handler() -> Router {
@@ -30,12 +33,13 @@ pub async fn register(
             .map_err(|e| HttpError::server_error(e.to_string()))?;
 
     let result = app_state.db_client
-        .save_user(&body.name, &body.email, &hash_password, &verification_token, expires_at)
+        .save_user(&body.first_name, &body.last_name, &body.email, &body.phone_number, &hash_password, &verification_token, expires_at)
         .await;
 
     match result {
         Ok(_user) => {
-            let send_email_result = send_verification_email(&body.email, &body.name, &verification_token).await;
+            let name = body.first_name.clone()+ " " + &body.last_name.clone();
+            let send_email_result = send_verification_email(&body.email, &name, &verification_token).await;
 
             if let Err(e) = send_email_result {
                 eprintln!("Failed to send verification email: {}", e);
@@ -67,7 +71,7 @@ pub async fn login(
        .map_err(|e| HttpError::bad_request(e.to_string()))?;
 
     let result = app_state.db_client
-        .get_user(None, None, Some(&body.email), None)
+        .get_user(None, Some(&body.email), None)
         .await
         .map_err(|e| HttpError::server_error(e.to_string()))?;
 
@@ -120,7 +124,7 @@ pub async fn verify_email(
         .map_err(|e| HttpError::bad_request(e.to_string()))?;
 
     let result = app_state.db_client
-        .get_user(None, None, None, Some(&query_params.token))
+        .get_user(None, None, Some(&query_params.token))
         .await
         .map_err(|e| HttpError::server_error(e.to_string()))?;
 
@@ -137,7 +141,9 @@ pub async fn verify_email(
     app_state.db_client.verifed_token(&query_params.token).await
         .map_err(|e| HttpError::server_error(e.to_string()))?;
 
-    let send_welcome_email_result = send_welcome_email(&user.email, &user.name).await;
+    let name = user.first_name + " " + &user.last_name;
+
+    let send_welcome_email_result = send_welcome_email(&user.email, &name).await;
 
     if let Err(e) = send_welcome_email_result {
         eprintln!("Failed to send welcome email: {}", e);
@@ -163,7 +169,7 @@ pub async fn verify_email(
         cookie.to_string().parse().unwrap() 
     );
 
-    let frontend_url = format!("http://localhost:5173/settings");
+    let frontend_url = format!("{}/settings", env::var("APP_URL").unwrap());
 
     let redirect = Redirect::to(&frontend_url);
 
@@ -182,7 +188,7 @@ pub async fn forgot_password(
        .map_err(|e| HttpError::bad_request(e.to_string()))?;
 
     let result = app_state.db_client
-            .get_user(None, None, Some(&body.email), None)
+            .get_user(None, Some(&body.email), None)
             .await
             .map_err(|e| HttpError::server_error(e.to_string()))?;
 
@@ -198,9 +204,12 @@ pub async fn forgot_password(
         .await
         .map_err(|e| HttpError::server_error(e.to_string()))?;
 
-    let reset_link = format!("http://localhost:5173/reset-password?token={}", &verification_token);
+    let reset_link = format!("{}/reset-password?token={}",env::var("APP_URL").unwrap() ,&verification_token);
+    println!("reset password link: {}", reset_link);
 
-    let email_sent = send_forgot_password_email(&user.email, &reset_link, &user.name).await;
+    let name = user.first_name.clone() + " " + &user.last_name.clone();
+
+    let email_sent = send_forgot_password_email(&user.email, &reset_link, &name).await;
 
     if let Err(e) = email_sent {
         eprintln!("Failed to send forgot password email: {}", e);
@@ -223,7 +232,7 @@ pub async fn reset_password(
         .map_err(|e| HttpError::bad_request(e.to_string()))?;
 
     let result = app_state.db_client
-        .get_user(None, None, None, Some(&body.token))
+        .get_user(None, None, Some(&body.token))
         .await
         .map_err(|e| HttpError::server_error(e.to_string()))?;
 

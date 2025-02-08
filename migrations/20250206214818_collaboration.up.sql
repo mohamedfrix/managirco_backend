@@ -1,0 +1,9 @@
+CREATE TABLE collaboration (
+    id SERIAL PRIMARY KEY ,
+    event_id SERIAL NOT NULL ,
+    name VARCHAR(255) NOT NULL ,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+    FOREIGN KEY (event_id) REFERENCES event(id) ON DELETE CASCADE
+);

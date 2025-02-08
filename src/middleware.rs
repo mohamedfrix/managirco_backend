@@ -14,14 +14,21 @@ use serde::{Deserialize, Serialize};
 use crate::{
     db::userext::UserExt,
     error::{ErrorMessage, HttpError},
-    models::user_model::{User, UserRole},
+    models::user_model::{User},
     utils::token,
     AppState
 };
+use crate::db::admin_repo::AdminRepo;
+use crate::models::admin_model::Admin;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct JWTAuthMiddeware {
     pub user: User,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct JWTAdminAuthMiddeware {
+    pub admin: Admin,
 }
 
 pub async fn auth(
@@ -63,7 +70,7 @@ pub async fn auth(
                 HttpError::unauthorized(ErrorMessage::InvalidToken.to_string())
             })?;
 
-    let user = app_state.db_client.get_user(Some(user_id), None, None, None)
+    let user = app_state.db_client.get_user(Some(user_id), None, None)
             .await
             .map_err(|_| {
                 HttpError::unauthorized(ErrorMessage::UserNoLongerExist.to_string())
@@ -82,22 +89,80 @@ pub async fn auth(
 }
 
 
-pub async fn role_check(
-    Extension(_app_state): Extension<Arc<AppState>>,
-    req: Request,
+// pub async fn role_check(
+//     Extension(_app_state): Extension<Arc<AppState>>,
+//     req: Request,
+//     next: Next,
+//     required_roles: Vec<UserRole>,
+// ) -> Result<impl IntoResponse, HttpError> {
+//     let user = req
+//             .extensions()
+//             .get::<JWTAuthMiddeware>()
+//             .ok_or_else(|| {
+//                 HttpError::unauthorized(ErrorMessage::UserNotAuthenticated.to_string())
+//             })?;
+//
+//     if !required_roles.contains(&user.user.role) {
+//         return Err(HttpError::new(ErrorMessage::PermissionDenied.to_string(), StatusCode::FORBIDDEN));
+//     }
+//
+//     Ok(next.run(req).await)
+// }
+
+
+pub async fn auth_admin(
+    cookie_jar: CookieJar,
+    Extension(app_state): Extension<Arc<AppState>>,
+    mut req: Request,
     next: Next,
-    required_roles: Vec<UserRole>,
 ) -> Result<impl IntoResponse, HttpError> {
-    let user = req
-            .extensions()
-            .get::<JWTAuthMiddeware>()
-            .ok_or_else(|| {
-                HttpError::unauthorized(ErrorMessage::UserNotAuthenticated.to_string())
-            })?;
-    
-    if !required_roles.contains(&user.user.role) {
-        return Err(HttpError::new(ErrorMessage::PermissionDenied.to_string(), StatusCode::FORBIDDEN));
-    }
+    let cookies = cookie_jar
+        .get("token")
+        .map(|cookie| cookie.value().to_string())
+        .or_else(|| {
+            req.headers()
+                .get(header::AUTHORIZATION)
+                .and_then(|auth_header| auth_header.to_str().ok())
+                .and_then(|auth_value| {
+                    if auth_value.starts_with("Bearer ") {
+                        Some(auth_value[7..].to_owned())
+                    } else {
+                        None
+                    }
+                })
+        });
+
+    let token = cookies.ok_or_else(|| {
+        HttpError::unauthorized(ErrorMessage::TokenNotProvided.to_string())
+    })?;
+
+    let token_details =
+        match token::decode_token(token, app_state.env.jwt_secret.as_bytes()) {
+            Ok(token_details) => token_details,
+            Err(_) => {
+                return Err(HttpError::unauthorized(ErrorMessage::InvalidToken.to_string()));
+            }
+        };
+
+    let admin_id = uuid::Uuid::parse_str(&token_details.to_string())
+        .map_err(|_| {
+            HttpError::unauthorized(ErrorMessage::InvalidToken.to_string())
+        })?;
+
+    let admin = app_state.db_client.get_admin(Some(admin_id), None, None)
+        .await
+        .map_err(|_| {
+            HttpError::unauthorized(ErrorMessage::UserNoLongerExist.to_string())
+        })?;
+
+    let admin = admin.ok_or_else(|| {
+        HttpError::unauthorized(ErrorMessage::UserNoLongerExist.to_string())
+    })?;
+
+    req.extensions_mut().insert(JWTAdminAuthMiddeware {
+        admin: admin.clone(),
+    });
 
     Ok(next.run(req).await)
+
 }

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::{extract::Query, middleware, response::IntoResponse, routing::{get, put}, Extension, Json, Router};
 use validator::Validate;
 
-use crate::{db::userext::UserExt, dtos::user_dto::{FilterUserDto, NameUpdateDto, RequestQueryDto, Response, RoleUpdateDto, UserData, UserListResponseDto, UserPasswordUpdateDto, UserResponseDto}, error::{ErrorMessage, HttpError}, middleware::{role_check, JWTAuthMiddeware}, models::user_model::UserRole, utils::password, AppState};
+use crate::{db::userext::UserExt, dtos::user_dto::{FilterUserDto, NameUpdateDto, RequestQueryDto, Response, UserData, UserListResponseDto, UserPasswordUpdateDto, UserResponseDto}, error::{ErrorMessage, HttpError}, middleware::{JWTAuthMiddeware}, utils::password, AppState};
 
 
 pub fn users_handler() -> Router {
@@ -11,20 +11,16 @@ pub fn users_handler() -> Router {
         .route(
             "/me", 
             get(get_me)
-            .layer(middleware::from_fn(|state, req, next| {
-                role_check(state, req, next, vec![UserRole::Admin, UserRole::User])
-            }))
-    )
-    .route(
-        "/users", 
-        get(get_users)
-        .layer(middleware::from_fn(|state, req, next| {
-            role_check(state, req, next, vec![UserRole::Admin])
-        }))
-    )
-    .route("/name", put(update_user_name))
-    .route("/role", put(update_user_role))
-    .route("/password", put(update_user_password))
+
+        )
+        .route(
+            "/users",
+            get(get_users)
+
+        )
+        .route("/name", put(update_user_name))
+        // .route("/role", put(update_user_role))
+        .route("/password", put(update_user_password))
 }
 
 
@@ -88,7 +84,7 @@ pub async fn update_user_name(
     let user_id = uuid::Uuid::parse_str(&user.id.to_string()).unwrap();
 
     let result = app_state.db_client.
-        update_user_name(user_id.clone(), &body.name)
+        update_user_name(user_id.clone(), &body.first_name, &body.last_name)
         .await
         .map_err(|e| HttpError::server_error(e.to_string()))?;
 
@@ -104,34 +100,34 @@ pub async fn update_user_name(
     Ok(Json(response))
 }
 
-pub async fn update_user_role(
-    Extension(app_state): Extension<Arc<AppState>>,
-    Extension(user): Extension<JWTAuthMiddeware>,
-    Json(body): Json<RoleUpdateDto>,
-) -> Result<impl IntoResponse, HttpError> {
-    body.validate()
-        .map_err(|e| HttpError::bad_request(e.to_string()))?;
-
-    let user = &user.user;
-
-    let user_id = uuid::Uuid::parse_str(&user.id.to_string()).unwrap();
-
-    let result = app_state.db_client
-        .update_user_role(user_id.clone(), body.role)
-        .await
-        .map_err(|e| HttpError::server_error(e.to_string()))?;
-
-    let filtered_user = FilterUserDto::filter_user(&result);
-
-    let response = UserResponseDto {
-        data: UserData {
-            user: filtered_user,
-        },
-        status: "success".to_string(),
-    };
-
-    Ok(Json(response))
-}
+// pub async fn update_user_role(
+//     Extension(app_state): Extension<Arc<AppState>>,
+//     Extension(user): Extension<JWTAuthMiddeware>,
+//     Json(body): Json<RoleUpdateDto>,
+// ) -> Result<impl IntoResponse, HttpError> {
+//     body.validate()
+//         .map_err(|e| HttpError::bad_request(e.to_string()))?;
+//
+//     let user = &user.user;
+//
+//     let user_id = uuid::Uuid::parse_str(&user.id.to_string()).unwrap();
+//
+//     let result = app_state.db_client
+//         .update_user_role(user_id.clone(), body.role)
+//         .await
+//         .map_err(|e| HttpError::server_error(e.to_string()))?;
+//
+//     let filtered_user = FilterUserDto::filter_user(&result);
+//
+//     let response = UserResponseDto {
+//         data: UserData {
+//             user: filtered_user,
+//         },
+//         status: "success".to_string(),
+//     };
+//
+//     Ok(Json(response))
+// }
 
 pub async fn update_user_password(
     Extension(app_state): Extension<Arc<AppState>>,
@@ -146,7 +142,7 @@ pub async fn update_user_password(
     let user_id = uuid::Uuid::parse_str(&user.id.to_string()).unwrap();
 
     let result = app_state.db_client
-        .get_user(Some(user_id.clone()), None, None, None)
+        .get_user(Some(user_id.clone()), None, None)
         .await
         .map_err(|e| HttpError::server_error(e.to_string()))?;
 

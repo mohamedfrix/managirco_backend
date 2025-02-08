@@ -1,0 +1,13 @@
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+CREATE TABLE admin (
+    id UUID PRIMARY KEY NOT NULL DEFAULT (uuid_generate_v4()),
+    email VARCHAR(255) UNIQUE NOT NULL ,
+    name VARCHAR(255) UNIQUE NOT NULL ,
+    password VARCHAR(255) NOT NULL ,
+    verified BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX admin_email_idx ON admin (email);
