@@ -16,7 +16,7 @@ pub trait ClubRepo {
         &self,
     ) -> Result<Vec<Club>, sqlx::Error>;
 
-    async fn get_club_name (
+    async fn get_club_by_name (
         &self,
         name: &str,
     ) -> Result<Club, sqlx::Error>;
@@ -31,7 +31,7 @@ impl ClubRepo for DBClient {
             r#"
             INSERT INTO club (name, school, email)
             VALUES ($1, $2, $3)
-            RETURNING club_id, name, school, email, created_at, updated_at
+            RETURNING id, name, school, email, created_at, updated_at
             "#,
             name,
             school,
@@ -46,7 +46,7 @@ impl ClubRepo for DBClient {
         let clubs = sqlx::query_as!(
             Club,
             r#"
-                SELECT * FROM club
+                SELECT id, name, school, email, created_at, updated_at FROM club
                 ORDER BY created_at DESC
             "#
         ).fetch_all(&self.pool)
@@ -54,8 +54,16 @@ impl ClubRepo for DBClient {
         Ok(clubs)
     }
 
-    async fn get_club_name(&self, name: &str) -> Result<Club, Error> {
-        todo!()
+    async fn get_club_by_name(&self, name: &str) -> Result<Club, Error> {
+        let club = sqlx::query_as!(
+            Club,
+            r#"
+                SELECT * FROM club WHERE name = $1
+            "#,
+            name
+        ).fetch_one(&self.pool)
+            .await?;
+        Ok(club)
     }
 }
 

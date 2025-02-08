@@ -4,7 +4,7 @@ use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use validator::Validate;
 use crate::AppState;
-use crate::db::clubRepo::ClubRepo;
+use crate::db::club_repo::ClubRepo;
 use crate::error::HttpError;
 use crate::dtos::club_dto::{AddClubDto, ClubResponseDto, GetAllClubsResponseDto};
 
