@@ -7,5 +7,11 @@ pipeline {
       }
     }
 
+    stage('Display files') {
+      steps {
+        sh 'ls && cd managurco_bacend && ls'
+      }
+    }
+
   }
 }
